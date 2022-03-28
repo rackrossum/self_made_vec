@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <iostream>
+#include <algorithm>
 
 template <typename T>
 struct RawMemory
@@ -55,6 +57,7 @@ void RawMemory<T>::Swap(RawMemory<T>& other) noexcept
     std::swap(cap, other.cap);
 }
 
+//Vector
 template <typename T>
 class Vector {
 public:
@@ -87,8 +90,40 @@ public:
   const T& operator[](size_t i) const;
   T& operator[](size_t i);
 
+  // В данной части задачи реализуйте дополнительно эти функции:
+  using iterator = T*;
+  using const_iterator = const T*;
+
+  iterator begin() noexcept;
+  iterator end() noexcept;
+
+  const_iterator begin() const noexcept;
+  const_iterator end() const noexcept;
+
+  // Тут должна быть такая же реализация, как и для константных версий begin/end
+  const_iterator cbegin() const noexcept;
+  const_iterator cend() const noexcept;
+
+  // Вставляет элемент перед pos
+  // Возвращает итератор на вставленный элемент
+  iterator Insert(const_iterator pos, const T& elem);
+  iterator Insert(const_iterator pos, T&& elem);
+
+  // Конструирует элемент по заданным аргументам конструктора перед pos
+  // Возвращает итератор на вставленный элемент
+  template <typename ... Args>
+  iterator Emplace(const_iterator it, Args&&... args);
+
+  // Удаляет элемент на позиции pos
+  // Возвращает итератор на элемент, следующий за удалённым
+  iterator Erase(const_iterator it);
+
 private:
   void Swap(Vector& other) noexcept;
+
+  void Realloc();
+
+  iterator InsertEmpty(const_iterator it);
 
 private:
   RawMemory<T> mem;
@@ -180,9 +215,7 @@ void Vector<T>::Resize(size_t n)
 template <typename T>
 void Vector<T>::PushBack(const T& elem)
 {
-    if (size == mem.cap)
-        Reserve((mem.cap == 0 ) ? 1 : 2 * mem.cap);
-
+    Realloc();
     new (mem.data + size) T(elem);
     ++size;
 }
@@ -190,9 +223,7 @@ void Vector<T>::PushBack(const T& elem)
 template <typename T>
 void Vector<T>::PushBack(T&& elem)
 {
-    if (size == mem.cap)
-        Reserve((mem.cap == 0 ) ? 1 : 2 * mem.cap);
-
+    Realloc();
     new (mem.data + size) T(std::move(elem));
     ++size;
 }
@@ -201,9 +232,7 @@ template <typename T>
 template <typename ... Args>
 T& Vector<T>::EmplaceBack(Args&&... args)
 {
-    if (size == mem.cap)
-        Reserve((mem.cap == 0 ) ? 1 : 2 * mem.cap);
-
+    Realloc();
     auto elem = new (mem.data + size) T(std::forward<Args>(args)...);
     ++size;
 
@@ -247,3 +276,94 @@ void Vector<T>::Swap(Vector<T>& other) noexcept
     mem.Swap(other.mem);
     std::swap(size, other.size);
 }
+
+template <typename T>
+void Vector<T>::Realloc()
+{
+    if (size == mem.cap)
+        Reserve((mem.cap == 0 ) ? 1 : 2 * mem.cap);
+}
+
+//part 2
+template <typename T>
+typename Vector<T>::iterator Vector<T>::begin() noexcept
+{
+    return mem.data;
+}
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::end() noexcept
+{
+    return mem.data + size;
+}
+
+template <typename T>
+typename Vector<T>::const_iterator Vector<T>::begin() const noexcept
+{
+    return mem.data;
+}
+
+template <typename T>
+typename Vector<T>::const_iterator Vector<T>::end() const noexcept
+{
+    return mem.data + size;
+}
+
+template <typename T>
+typename Vector<T>::const_iterator Vector<T>::cbegin() const noexcept
+{
+    return begin();
+}
+
+template <typename T>
+typename Vector<T>::const_iterator Vector<T>::cend() const noexcept
+{
+    return end();
+}
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::Insert(typename Vector<T>::const_iterator pos, const T& elem)
+{
+    auto dest = InsertEmpty(pos);
+    return new (dest) T(elem);
+}
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::Insert(typename Vector<T>::const_iterator pos, T&& elem)
+{
+    auto dest = InsertEmpty(pos);
+    return new (dest) T(std::move(elem));
+}
+
+template <typename T>
+template <typename ... Args>
+typename Vector<T>::iterator Vector<T>::Emplace(typename Vector<T>::const_iterator it, Args&&... args)
+{
+    auto dest = InsertEmpty(it);
+    return new (dest) T(std::forward<Args>(args)...);
+}
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::InsertEmpty(typename Vector<T>::const_iterator pos)
+{
+    auto d = pos - begin();
+    Realloc();
+    for (auto it = end(); it != begin() + d; --it)
+    {
+        std::swap(*(it), *(it - 1));  
+    }
+    //std::move_backward(begin() + d, end(), end() + 1);
+    ++size;
+    return begin() + d;
+}
+
+template <typename T>
+typename Vector<T>::iterator Vector<T>::Erase(typename Vector<T>::const_iterator pos)
+{
+    auto d = pos - begin();
+    std::destroy_at(pos);
+    std::move(begin() + d + 1, end(), begin() + d);
+    --size;
+    return begin() + d;
+}
+
